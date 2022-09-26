@@ -1,4 +1,4 @@
-# TODO:
+# TODO: Организовать файловую структуру
 import time
 import math
 import enum

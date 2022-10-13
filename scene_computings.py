@@ -47,7 +47,7 @@ class Vector:
                            np.sqrt(x_b ** 2 + y_b ** 2)))
         return alpha
 
-    def clockwise_angle(self, vec2):
+    def signed_angle(self, vec2):
         vec1 = self.to_origin().end
         vec2 = vec2.to_origin().end
         dot = vec1.x * vec2.x + vec1.y * vec2.y

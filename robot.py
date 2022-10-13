@@ -151,7 +151,7 @@ class Robot:
             l_r_vector = destination_vector - f_w_vector
             left_right_vel = l_r_vector.length()
 
-            if l_r_vector.clockwise_angle(Vector(Point(0, 0), Point(0, 1))) - self.get_orientation()[1] < 0:
+            if l_r_vector.signed_angle(Vector(Point(0, 0), Point(0, 1))) - self.get_orientation()[1] < 0:
                 left_right_vel = -left_right_vel
 
             # if ((forward_back_vel < 0) and (l_r_vector.end.is_on_left(f_w_vector))) or \

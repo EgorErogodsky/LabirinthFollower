@@ -1,41 +1,7 @@
-# TODO: Организовать файловую структуру
-import enum
-import math
 import random
 
-import numpy as np
-
+from graph_structure import *
 from zmqRemoteApi import RemoteAPIClient
-
-
-def distance(x1, y1, x2, y2):
-    return math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
-
-
-def get_neighbour_cell_center(object_coords, side):
-    x, y = object_coords
-    x1, x2 = np.floor(x), np.ceil(x)
-    y1, y2 = np.floor(y), np.ceil(y)
-    x_c, y_c = (x2 + x1) / 2, (y2 + y1) / 2
-    match side:
-        case 0:  # front
-            x_n, y_n = x_c, y_c + 1
-        case 1:  # right
-            x_n, y_n = x_c + 1, y_c
-        case 2:  # back
-            x_n, y_n = x_c, y_c - 1
-        case 3:  # left
-            x_n, y_n = x_c - 1, y_c
-        case _:
-            raise ValueError('Неверно задана сторона!')
-    return x_n, y_n
-
-
-class VertexType(enum.Enum):
-    deadlock = 1
-    corner = 2
-    triple_fork = 3
-    cross = 4
 
 
 class Moving(enum.IntEnum):
@@ -46,35 +12,16 @@ class Moving(enum.IntEnum):
     standing = 5
 
 
-class Edge:
-    def __init__(self, vert1, vert2=-1, length=-1):
-        self.vert1 = vert1
-        self.vert2 = vert2
-        self.length = length
-
-    @classmethod
-    def undefined_edge(cls):
-        return cls(-1, -1, -1)
-
-
-class Vertex:
-    def __init__(self,
-                 x, y,
-                 front_edge, right_edge, back_edge, left_edge,
-                 vertex_type):
-        self.coords = (x, y)
-        self.edges = [front_edge, right_edge, back_edge, left_edge]
-        self.vertex_type = vertex_type
-
-    @classmethod
-    def undefined_vertex(cls):
-        return cls(*([-1] * 7))
-
-
 class Robot:
     _destination_point = (np.NaN, np.NaN)
 
     def __init__(self, sim, robot_name):
+        def init_sensors():
+            _ = self._get_sensor_data(self._sensors['front'])
+            _ = self._get_sensor_data(self._sensors['right'])
+            _ = self._get_sensor_data(self._sensors['back'])
+            _ = self._get_sensor_data(self._sensors['left'])
+
         global vertices
         self.name = robot_name
         self.sim = sim
@@ -85,10 +32,7 @@ class Robot:
         self.current_edge = Edge.undefined_edge()
         self.current_vertex = Vertex.undefined_vertex()
         self.moving = Moving.standing
-        _ = self._get_sensor_data(self._sensors['front'])
-        _ = self._get_sensor_data(self._sensors['right'])
-        _ = self._get_sensor_data(self._sensors['back'])
-        _ = self._get_sensor_data(self._sensors['left'])
+        init_sensors()
 
     def _get_sensor_data(self, sensor):
         sensor_output = ['result',
@@ -100,7 +44,7 @@ class Robot:
         return {sensor_output[i]: sim.readProximitySensor(sensor)[i] for i in range(len(sensor_output))}
 
     def is_in_vertex(self):
-        # TODO: Разнести проверку на вершину и добавление вершины в разные методы
+        # TODO: Разнести проверку на вершину и добавление вершины в разные методы ???
         def add_vertex(vertex_type):
             nonlocal results
 
@@ -108,12 +52,12 @@ class Robot:
             coords_0 = self.get_coords()
             for vertex in vertices:
                 coords_i = vertex.coords
-                if distance(*coords_0, *coords_i) <= 0.25:
+                if coords_0.distance(coords_i) <= 0.25:
                     add = False
                     self.current_vertex = vertex
                     break
             if add:
-                vertex = Vertex(*self.get_coords(), *([-1] * 4), vertex_type)
+                vertex = Vertex(self.get_coords(), *([-1] * 4), vertex_type)
                 vertex_edges = []
                 for result in results:
                     if result:
@@ -152,7 +96,11 @@ class Robot:
 
     def get_coords(self):
         position = self.sim.getObjectPosition(self.sim.getObject('/youBot'), -1)
-        return position[0], position[1]
+        return Point(position[0], position[1])
+
+    def get_orientation(self):
+        angles = sim.getObjectOrientation(self.sim.getObject('/youBot'), -1)
+        return angles[0], angles[1]
 
     def _choose_path(self):
         if self.is_in_vertex():
@@ -161,13 +109,15 @@ class Robot:
             # Рандомный выбор
             # TODO: Заменить на выбор по алгоритму обхода лабиринта
             chosen_edge = random.choice(present_edges)
+            # chosen_edge = present_edges[2]
             if chosen_edge.vert2 != -1:
                 self._destination_point = chosen_edge.vert2.coords
             else:
                 self.moving = self.current_vertex.edges.index(chosen_edge)
                 self._destination_point = get_neighbour_cell_center(self.get_coords(),
                                                                     self.moving)
-            return chosen_edge, self._destination_point
+            self.current_edge = chosen_edge
+            return chosen_edge
         else:
             raise Exception("Выбор пути должен производиться только на ветвлении!")
 
@@ -181,18 +131,55 @@ class Robot:
         sim.setJointTargetVelocity(wheel_joints[2], -forward_back_vel - left_right_vel + rotation_vel)
         sim.setJointTargetVelocity(wheel_joints[3], -forward_back_vel + left_right_vel + rotation_vel)
 
-    def move(self):
+    def _move(self):
+        """
+
+        """
         if self.is_in_vertex():
-            chosen_edge, self._destination_point = self._choose_path()
+            self._choose_path()
         else:
             self._destination_point = get_neighbour_cell_center(self.get_coords(), self.moving)
-        if self._destination_point[0] != np.NaN and self._destination_point[1] != np.NaN:
-            forward_back_vel = 3 * (self._destination_point[1] - self.get_coords()[1])
-            left_right_vel = self._destination_point[0] - self.get_coords()[0]
+        if (self._destination_point.x != np.NaN) and (self._destination_point.y != np.NaN):
+            destination_vector = Vector(self.get_coords(), self._destination_point)
+            alpha = self.get_orientation()[1] - Vector(Point(0, 0), Point(0, 1)).angle(destination_vector)
+
+            forward_back_vel = destination_vector.length() * np.cos(alpha)
+            f_w_x = np.sin(alpha) * forward_back_vel
+            f_w_y = abs(np.cos(alpha)) * forward_back_vel
+            f_w_vector = Vector(self.get_coords(), self.get_coords() + Point(f_w_x, f_w_y))
+
+            l_r_vector = destination_vector - f_w_vector
+            left_right_vel = l_r_vector.length()
+
+            if l_r_vector.clockwise_angle(Vector(Point(0, 0), Point(0, 1))) - self.get_orientation()[1] < 0:
+                left_right_vel = -left_right_vel
+
+            # if ((forward_back_vel < 0) and (l_r_vector.end.is_on_left(f_w_vector))) or \
+            #         (forward_back_vel > 0) and (not l_r_vector.end.is_on_left(f_w_vector)):
+            #     left_right_vel = -left_right_vel
+
+            # left_right_vel = vec_length(*self.get_coords(), *self._destination_point) * np.sin(alpha)
             self._set_movement(forward_back_vel, left_right_vel, 0)
-        while distance(*self.get_coords(), *self._destination_point) > 0.1:
-            print()
-        self._set_movement(0, 0, 0)
+
+    def start(self):
+        while 1:
+            self._move()
+            while self.get_coords().distance(self._destination_point) > 0.2:
+                print(self._destination_point.x, self._destination_point.y)
+                continue
+            self._set_movement(0, 0, 0)
+
+    # def _orient(self):
+    #     eps = 0.001
+    #     side = 0
+    #     while abs(self.get_orientation()[0] * 180 / np.pi - (-90)) > eps:
+    #         if self.get_orientation()[0] * 180 / np.pi > -90 and side != 1:
+    #             self._set_movement(0, 0, 0.08)
+    #             side = 1
+    #         elif self.get_orientation()[0] * 180 / np.pi < -90 and side != 2:
+    #             self._set_movement(0, 0, -0.08)
+    #             side = 2
+    #     self._set_movement(0, 0, 0)
 
 
 client = RemoteAPIClient()
@@ -209,8 +196,7 @@ sim.startSimulation()
 robot = Robot(sim, 'youBot')
 # print(robot.is_in_vertex())
 if sim.getSimulationTime() > 1:
-    while 1:
-        robot.move()
+    robot.start()
     # client.step()
     # backSens = sim.getObject('/youBot/BACKSENS')
     # result, distance, detectedPoint, detectedObjectHandle, detectedSurfaceNormalVector = sim.readProximitySensor(

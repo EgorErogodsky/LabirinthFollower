@@ -25,11 +25,13 @@ class Vertex:
     def __init__(self,
                  coords,
                  front_edge, right_edge, back_edge, left_edge,
-                 vertex_type):
+                 vertex_type,
+                 id):
         self.coords = coords
         self.edges = [front_edge, right_edge, back_edge, left_edge]
         self.vertex_type = vertex_type
+        self.id = id
 
     @classmethod
     def undefined_vertex(cls):
-        return cls(Point(0, 0), *([-1] * 5))
+        return cls(Point(np.NaN, np.NaN), *([-1] * 6))

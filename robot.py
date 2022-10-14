@@ -1,5 +1,3 @@
-import random
-
 from graph_structure import *
 from zmqRemoteApi import RemoteAPIClient
 
@@ -57,7 +55,7 @@ class Robot:
                     self.current_vertex = vertex
                     break
             if add:
-                vertex = Vertex(self.get_coords(), *([-1] * 4), vertex_type)
+                vertex = Vertex(self.get_coords(), *([-1] * 4), vertex_type, len(vertices))
                 vertex_edges = []
                 for result in results:
                     if result:
@@ -75,7 +73,7 @@ class Robot:
                 vertices.append(vertex)
                 self.current_vertex = vertex
                 for vertex_edge in vertex_edges:
-                    if type(vertex_edge) == Edge:
+                    if (type(vertex_edge) == Edge) and (vertex_edge not in edges):
                         edges.append(vertex_edge)
             self.current_edge = Edge.undefined_edge()
 
@@ -108,14 +106,15 @@ class Robot:
                              if edge != -1]
             # Рандомный выбор
             # TODO: Заменить на выбор по алгоритму обхода лабиринта
-            chosen_edge = random.choice(present_edges)
-            # chosen_edge = present_edges[2]
+            # chosen_edge = random.choice(present_edges)
+            chosen_edge = present_edges[2]
             if chosen_edge.vert2 != -1:
                 self._destination_point = chosen_edge.vert2.coords
             else:
                 self.moving = self.current_vertex.edges.index(chosen_edge)
                 self._destination_point = get_neighbour_cell_center(self.get_coords(),
                                                                     self.moving)
+            chosen_edge.length = 0
             self.current_edge = chosen_edge
             return chosen_edge
         else:
@@ -132,13 +131,12 @@ class Robot:
         sim.setJointTargetVelocity(wheel_joints[3], -forward_back_vel + left_right_vel + rotation_vel)
 
     def _move(self):
-        """
-
-        """
+        global adjacency_list
         if self.is_in_vertex():
             self._choose_path()
         else:
             self._destination_point = get_neighbour_cell_center(self.get_coords(), self.moving)
+            self.current_edge.length += 1
         if (self._destination_point.x != np.NaN) and (self._destination_point.y != np.NaN):
             destination_vector = Vector(self.get_coords(), self._destination_point)
             alpha = self.get_orientation()[1] - Vector(Point(0, 0), Point(0, 1)).angle(destination_vector)
@@ -160,6 +158,8 @@ class Robot:
 
             # left_right_vel = vec_length(*self.get_coords(), *self._destination_point) * np.sin(alpha)
             self._set_movement(forward_back_vel, left_right_vel, 0)
+        adjacency_list = [(edge.vert1.id, edge.vert2.id, edge.length) for edge in edges
+                          if (edge.vert1 != -1) and (edge.vert2 != -1)]
 
     def start(self):
         while 1:
@@ -186,6 +186,8 @@ client = RemoteAPIClient()
 sim = client.getObject('sim')
 vertices = []
 edges = []
+# Матрица смежности
+adjacency_list = []
 
 client.setStepping(False)
 

@@ -1,6 +1,7 @@
 from graph_structure import *
 from zmqRemoteApi import RemoteAPIClient
-
+import random
+import networkx as nx
 
 class Moving(enum.IntEnum):
     front = 0
@@ -104,10 +105,23 @@ class Robot:
         if self.is_in_vertex():
             present_edges = [edge for edge in self.current_vertex.edges
                              if edge != -1]
-            # Рандомный выбор
-            # TODO: Заменить на выбор по алгоритму обхода лабиринта
-            # chosen_edge = random.choice(present_edges)
-            chosen_edge = present_edges[2]
+            status = [e.checked for e in self.current_vertex.edges if e != -1]
+
+            # В первую очередь ошибки искать тут)
+            if False in status or self.current_vertex.id == 0:
+                # Рандомный выбор
+                # выбирается если есть неисследованные рёбра и отмечает выбранное
+                chosen_edge = random.choice(present_edges)
+                chosen_edge.checked = True
+            else:
+                # TODO: Сделать занесение вершины раньше этого места, а то в тупике он не видит в графе текущую вершину
+                g = nx.Graph()
+                g.add_weighted_edges_from(adjacency_list)
+                print("**", adjacency_list)
+                print(self.current_vertex.edges)
+                chosen_edge = min([nx.dijkstra_path(g, str(self.current_vertex.id), v) for v in vertices if v.id != self.current_vertex.id])
+            # chosen_edge = present_edges[2]
+
             if chosen_edge.vert2 != -1:
                 self._destination_point = chosen_edge.vert2.coords
             else:
@@ -132,6 +146,9 @@ class Robot:
 
     def _move(self):
         global adjacency_list
+        adjacency_list = [(edge.vert1.id, edge.vert2.id, edge.length) for edge in edges
+                          if (edge.vert1 != -1) and (edge.vert2 != -1)]
+        print(adjacency_list)
         if self.is_in_vertex():
             self._choose_path()
         else:
@@ -158,14 +175,12 @@ class Robot:
 
             # left_right_vel = vec_length(*self.get_coords(), *self._destination_point) * np.sin(alpha)
             self._set_movement(forward_back_vel, left_right_vel, 0)
-        adjacency_list = [(edge.vert1.id, edge.vert2.id, edge.length) for edge in edges
-                          if (edge.vert1 != -1) and (edge.vert2 != -1)]
 
     def start(self):
         while 1:
             self._move()
             while self.get_coords().distance(self._destination_point) > 0.2:
-                print(self._destination_point.x, self._destination_point.y)
+                #print(self._destination_point.x, self._destination_point.y)
                 continue
             self._set_movement(0, 0, 0)
 
@@ -207,3 +222,4 @@ if sim.getSimulationTime() > 1:
     # if t > 10:
     #     exit()
 # sim.stopSimulation()
+

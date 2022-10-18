@@ -15,6 +15,7 @@ class Edge:
         self.vert1 = vert1
         self.vert2 = vert2
         self.length = length
+        self.checked = False
 
     @classmethod
     def undefined_edge(cls):

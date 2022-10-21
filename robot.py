@@ -1,7 +1,9 @@
 from graph_structure import *
 from zmqRemoteApi import RemoteAPIClient
+
 import random
 import networkx as nx
+
 
 class Moving(enum.IntEnum):
     front = 0
@@ -39,7 +41,6 @@ class Robot:
                          'detectedPoint',
                          'detectedObjectHandle',
                          'detectedSurfaceNormalVector']
-        out = self.sim.readProximitySensor(sensor)
         return {sensor_output[i]: sim.readProximitySensor(sensor)[i] for i in range(len(sensor_output))}
 
     def is_in_vertex(self):
@@ -158,22 +159,25 @@ class Robot:
             destination_vector = Vector(self.get_coords(), self._destination_point)
             alpha = self.get_orientation()[1] - Vector(Point(0, 0), Point(0, 1)).angle(destination_vector)
 
-            forward_back_vel = destination_vector.length() * np.cos(alpha)
-            f_w_x = np.sin(alpha) * forward_back_vel
-            f_w_y = abs(np.cos(alpha)) * forward_back_vel
-            f_w_vector = Vector(self.get_coords(), self.get_coords() + Point(f_w_x, f_w_y))
+            forward_back_vel = abs(destination_vector.length() * np.cos(alpha))
+            left_right_vel = abs(destination_vector.length() * np.sin(alpha))
 
-            l_r_vector = destination_vector - f_w_vector
-            left_right_vel = l_r_vector.length()
-
-            if l_r_vector.signed_angle(Vector(Point(0, 0), Point(0, 1))) - self.get_orientation()[1] < 0:
+            destination_angle = Vector(Point(0, 0), Point(0, 1)).signed_angle(destination_vector) - \
+                                self.get_orientation()[1]
+            # print(Vector(Point(0, 0), Point(0, 1)).signed_angle(destination_vector))
+            # print(self.get_orientation()[1])
+            # print(destination_angle)
+            if destination_angle > np.pi:
+                destination_angle = -(2 * np.pi - destination_angle)
+            # print(destination_angle)
+            if np.pi / 2 <= destination_angle < np.pi:
+                forward_back_vel = -forward_back_vel
+            elif -np.pi <= destination_angle < -np.pi / 2:
+                forward_back_vel = -forward_back_vel
+                left_right_vel = -left_right_vel
+            elif -np.pi / 2 <= destination_angle < 0:
                 left_right_vel = -left_right_vel
 
-            # if ((forward_back_vel < 0) and (l_r_vector.end.is_on_left(f_w_vector))) or \
-            #         (forward_back_vel > 0) and (not l_r_vector.end.is_on_left(f_w_vector)):
-            #     left_right_vel = -left_right_vel
-
-            # left_right_vel = vec_length(*self.get_coords(), *self._destination_point) * np.sin(alpha)
             self._set_movement(forward_back_vel, left_right_vel, 0)
 
     def start(self):
@@ -183,18 +187,6 @@ class Robot:
                 #print(self._destination_point.x, self._destination_point.y)
                 continue
             self._set_movement(0, 0, 0)
-
-    # def _orient(self):
-    #     eps = 0.001
-    #     side = 0
-    #     while abs(self.get_orientation()[0] * 180 / np.pi - (-90)) > eps:
-    #         if self.get_orientation()[0] * 180 / np.pi > -90 and side != 1:
-    #             self._set_movement(0, 0, 0.08)
-    #             side = 1
-    #         elif self.get_orientation()[0] * 180 / np.pi < -90 and side != 2:
-    #             self._set_movement(0, 0, -0.08)
-    #             side = 2
-    #     self._set_movement(0, 0, 0)
 
 
 client = RemoteAPIClient()
@@ -211,15 +203,5 @@ sim.startSimulation()
 # s = f'Simulation time: {t:.2f} [s]'
 # print(s)
 robot = Robot(sim, 'youBot')
-# print(robot.is_in_vertex())
 if sim.getSimulationTime() > 1:
     robot.start()
-    # client.step()
-    # backSens = sim.getObject('/youBot/BACKSENS')
-    # result, distance, detectedPoint, detectedObjectHandle, detectedSurfaceNormalVector = sim.readProximitySensor(
-    #     backSens)
-    # print(result, distance, detectedObjectHandle, detectedSurfaceNormalVector)
-    # if t > 10:
-    #     exit()
-# sim.stopSimulation()
-

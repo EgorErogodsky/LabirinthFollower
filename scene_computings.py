@@ -52,7 +52,7 @@ class Vector:
         vec2 = vec2.to_origin().end
         dot = vec1.x * vec2.x + vec1.y * vec2.y
         det = vec1.x * vec2.y - vec1.y * vec2.x
-        return np.arctan2(det, dot)
+        return -np.arctan2(det, dot)
 
     def to_origin(self):
         return Vector(Point(0, 0), Point(self.end.x - self.start.x, self.end.y - self.start.y))

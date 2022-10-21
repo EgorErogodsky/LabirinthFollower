@@ -1,8 +1,9 @@
+import random
+
+import networkx as nx
+
 from graph_structure import *
 from zmqRemoteApi import RemoteAPIClient
-
-import random
-import networkx as nx
 
 
 class Moving(enum.IntEnum):
@@ -14,6 +15,7 @@ class Moving(enum.IntEnum):
 
 
 class Robot:
+    SPEED_BOOST = 2
     _destination_point = (np.NaN, np.NaN)
 
     def __init__(self, sim, robot_name):
@@ -178,7 +180,7 @@ class Robot:
             elif -np.pi / 2 <= destination_angle < 0:
                 left_right_vel = -left_right_vel
 
-            self._set_movement(forward_back_vel, left_right_vel, 0)
+            self._set_movement(self.SPEED_BOOST * forward_back_vel, self.SPEED_BOOST * left_right_vel, 0)
 
     def start(self):
         while 1:

@@ -59,10 +59,8 @@ class Vector:
 
 
 def get_neighbour_cell_center(object_coords, side):
-    x, y = object_coords.x, object_coords.y
-    x1, x2 = np.floor(x), np.ceil(x)
-    y1, y2 = np.floor(y), np.ceil(y)
-    x_c, y_c = (x2 + x1) / 2, (y2 + y1) / 2
+    cell_center = get_cell_center(object_coords)
+    x_c, y_c = cell_center.x, cell_center.y
     match side:
         case 0:  # front
             x_n, y_n = x_c, y_c + 1
@@ -75,3 +73,11 @@ def get_neighbour_cell_center(object_coords, side):
         case _:
             raise ValueError('Неверно задана сторона!')
     return Point(x_n, y_n)
+
+
+def get_cell_center(object_coords):
+    x, y = object_coords.x, object_coords.y
+    x1, x2 = np.floor(x), np.ceil(x)
+    y1, y2 = np.floor(y), np.ceil(y)
+    x_c, y_c = (x2 + x1) / 2, (y2 + y1) / 2
+    return Point(x_c, y_c)

@@ -45,56 +45,68 @@ class Robot:
                          'detectedSurfaceNormalVector']
         return {sensor_output[i]: sim.readProximitySensor(sensor)[i] for i in range(len(sensor_output))}
 
+    def _get_wall_detection(self):
+        return [self._get_sensor_data(sensor)['result'] for sensor in self._sensors.values()]
+
     def is_in_vertex(self):
-        # TODO: Разнести проверку на вершину и добавление вершины в разные методы ???
-        def add_vertex(vertex_type):
-            nonlocal results
-
-            add = True
-            coords_0 = self.get_coords()
-            for vertex in vertices:
-                coords_i = vertex.coords
-                if coords_0.distance(coords_i) <= 0.25:
-                    add = False
-                    self.current_vertex = vertex
-                    break
-            if add:
-                vertex = Vertex(self.get_coords(), *([-1] * 4), vertex_type, len(vertices))
-                vertex_edges = []
-                for result in results:
-                    if result:
-                        vertex_edges.append(-1)
-                    else:
-                        vertex_edges.append(Edge(vertex, -1))
-                if self.moving < 4:
-                    if self.current_edge.vert2 == -1:
-                        self.current_edge.vert2 = vertex
-                    if (self.moving == 0) or (self.moving == 1):
-                        vertex_edges[self.moving + 2] = self.current_edge
-                    else:
-                        vertex_edges[self.moving - 2] = self.current_edge
-                vertex.edges = vertex_edges
-                vertices.append(vertex)
-                self.current_vertex = vertex
-                for vertex_edge in vertex_edges:
-                    if (type(vertex_edge) == Edge) and (vertex_edge not in edges):
-                        edges.append(vertex_edge)
-            self.current_edge = Edge.undefined_edge()
-
-        results = [self._get_sensor_data(sensor)['result'] for sensor in self._sensors.values()]
+        results = self._get_wall_detection()
         if results.count(1) == 3:
-            add_vertex(VertexType.deadlock)
+            vertex_type = VertexType.deadlock
         elif results.count(1) == 1:
-            add_vertex(VertexType.triple_fork)
+            vertex_type = VertexType.triple_fork
         elif results.count(1) == 0:
-            add_vertex(VertexType.cross)
+            vertex_type = VertexType.cross
         elif (results != [1, 0, 1, 0]) \
                 and (results != [0, 1, 0, 1]) \
                 and (results.count(1) == 2):
-            add_vertex(VertexType.corner)
+            vertex_type = VertexType.corner
         else:
-            return False
-        return True
+            return False, None
+        return True, vertex_type
+
+    def _add_vertex(self, vertex_type):
+        add = True
+
+        results = self._get_wall_detection()
+        coords_0 = self.get_coords()
+
+        for vertex in vertices:
+            coords_i = vertex.coords
+            if coords_0.distance(coords_i) <= 0.3:
+                add = False
+                self.current_vertex = vertex
+
+                if self.moving < 4:
+                    if self.current_edge.vert2 == -1:
+                        self.current_edge.vert2 = self.current_vertex
+                    if (self.moving == 0) or (self.moving == 1):
+                        self.current_vertex.edges[self.moving + 2] = self.current_edge
+                    else:
+                        self.current_vertex.edges[self.moving - 2] = self.current_edge
+                break
+
+        if add:
+            vertex = Vertex(get_cell_center(self.get_coords()), *([-1] * 4), vertex_type, len(vertices))
+            vertex_edges = []
+            for result in results:
+                if result:
+                    vertex_edges.append(-1)
+                else:
+                    vertex_edges.append(Edge(vertex, -1))
+            if self.moving < 4:
+                if self.current_edge.vert2 == -1:
+                    self.current_edge.vert2 = vertex
+                if (self.moving == 0) or (self.moving == 1):
+                    vertex_edges[self.moving + 2] = self.current_edge
+                else:
+                    vertex_edges[self.moving - 2] = self.current_edge
+            vertex.edges = vertex_edges
+            vertices.append(vertex)
+            self.current_vertex = vertex
+            for vertex_edge in vertex_edges:
+                if (type(vertex_edge) == Edge) and (vertex_edge not in edges):
+                    edges.append(vertex_edge)
+        self.current_edge = Edge.undefined_edge()
 
     def get_coords(self):
         position = self.sim.getObjectPosition(self.sim.getObject('/youBot'), -1)
@@ -105,13 +117,14 @@ class Robot:
         return angles[0], angles[1]
 
     def _choose_path(self):
-        if self.is_in_vertex():
+        if self.is_in_vertex()[1]:
             present_edges = [edge for edge in self.current_vertex.edges
-                             if edge != -1]
-            status = [e.checked for e in self.current_vertex.edges if e != -1]
+                             if edge != -1 and not edge.checked]
+            # status = [e.checked for e in self.current_vertex.edges if e != -1]
 
             # В первую очередь ошибки искать тут)
-            if False in status or self.current_vertex.id == 0:
+            # if False in status or self.current_vertex.id == 0:
+            if len(present_edges) > 0:
                 # Рандомный выбор
                 # выбирается если есть неисследованные рёбра и отмечает выбранное
                 chosen_edge = random.choice(present_edges)
@@ -122,16 +135,30 @@ class Robot:
                 g.add_weighted_edges_from(adjacency_list)
                 print("**", adjacency_list)
                 print(self.current_vertex.edges)
-                chosen_edge = min([nx.dijkstra_path(g, str(self.current_vertex.id), v) for v in vertices if v.id != self.current_vertex.id])
+                chosen_edge = min([nx.dijkstra_path(g, str(self.current_vertex.id), str(v.id)) for v in vertices if
+                                   v.id != self.current_vertex.id])
+
+                v1 = vertices[int(chosen_edge[0])]
+                v2 = vertices[int(chosen_edge[1])]
+                for edge in v1.edges:
+                    if type(edge) == Edge:
+                        if v2 in (edge.vert1, edge.vert2):
+                            chosen_edge = edge
+
+                chosen_edge.checked = True
+
             # chosen_edge = present_edges[2]
 
-            if chosen_edge.vert2 != -1:
-                self._destination_point = chosen_edge.vert2.coords
-            else:
-                self.moving = self.current_vertex.edges.index(chosen_edge)
-                self._destination_point = get_neighbour_cell_center(self.get_coords(),
-                                                                    self.moving)
-            chosen_edge.length = 0
+            # if chosen_edge.vert2 != -1:
+            #     if self.current_vertex == chosen_edge.vert1:
+            #         self._destination_point = chosen_edge.vert2.coords
+            #     else:
+            #         self._destination_point = chosen_edge.vert1.coords
+            # else:
+            self.moving = self.current_vertex.edges.index(chosen_edge)
+            self._destination_point = get_neighbour_cell_center(self.get_coords(),
+                                                                self.moving)
+            chosen_edge.length = 1
             self.current_edge = chosen_edge
             return chosen_edge
         else:
@@ -149,14 +176,21 @@ class Robot:
 
     def _move(self):
         global adjacency_list
-        adjacency_list = [(edge.vert1.id, edge.vert2.id, edge.length) for edge in edges
+
+        in_vertex, vertex_type = self.is_in_vertex()
+        if in_vertex:
+            self._add_vertex(vertex_type)
+        adjacency_list = [(str(edge.vert1.id), str(edge.vert2.id), edge.length) for edge in edges
                           if (edge.vert1 != -1) and (edge.vert2 != -1)]
         print(adjacency_list)
-        if self.is_in_vertex():
+
+        if in_vertex:
+            print([edge.checked for edge in self.current_vertex.edges if edge != -1])
             self._choose_path()
         else:
             self._destination_point = get_neighbour_cell_center(self.get_coords(), self.moving)
             self.current_edge.length += 1
+
         if (self._destination_point.x != np.NaN) and (self._destination_point.y != np.NaN):
             destination_vector = Vector(self.get_coords(), self._destination_point)
             alpha = self.get_orientation()[1] - Vector(Point(0, 0), Point(0, 1)).angle(destination_vector)
@@ -166,11 +200,11 @@ class Robot:
 
             destination_angle = Vector(Point(0, 0), Point(0, 1)).signed_angle(destination_vector) - \
                                 self.get_orientation()[1]
-            # print(Vector(Point(0, 0), Point(0, 1)).signed_angle(destination_vector))
-            # print(self.get_orientation()[1])
-            # print(destination_angle)
+
             if destination_angle > np.pi:
                 destination_angle = -(2 * np.pi - destination_angle)
+            elif destination_angle < -np.pi:
+                destination_angle = 2 * np.pi + destination_angle
             # print(destination_angle)
             if np.pi / 2 <= destination_angle < np.pi:
                 forward_back_vel = -forward_back_vel
@@ -186,8 +220,9 @@ class Robot:
         while 1:
             self._move()
             while self.get_coords().distance(self._destination_point) > 0.2:
-                #print(self._destination_point.x, self._destination_point.y)
+                # print(self._destination_point.x, self._destination_point.y)
                 continue
+            # TODO: Добавить рисование графа
             self._set_movement(0, 0, 0)
 
 

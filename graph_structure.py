@@ -1,6 +1,20 @@
 import enum
 
+from matplotlib import pyplot as plt
+
 from scene_computings import *
+
+plt.ion()
+
+
+def plot_edge(edge):
+    # plt.clf()
+    plt.xlim(-5., 5.)
+    plt.ylim(-5., 5.)
+    plt.plot([edge.vert1.coords.x, edge.vert2.coords.x],
+             [edge.vert1.coords.y, edge.vert2.coords.y], 'o', linestyle='-')
+    plt.draw()
+    plt.gcf().canvas.flush_events()
 
 
 class VertexType(enum.Enum):

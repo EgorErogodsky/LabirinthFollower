@@ -79,6 +79,7 @@ class Robot:
                 if self.moving < 4:
                     if self.current_edge.vert2 == -1:
                         self.current_edge.vert2 = self.current_vertex
+                        plot_edge(self.current_edge)
                     if (self.moving == 0) or (self.moving == 1):
                         self.current_vertex.edges[self.moving + 2] = self.current_edge
                     else:
@@ -96,6 +97,7 @@ class Robot:
             if self.moving < 4:
                 if self.current_edge.vert2 == -1:
                     self.current_edge.vert2 = vertex
+                    plot_edge(self.current_edge)
                 if (self.moving == 0) or (self.moving == 1):
                     vertex_edges[self.moving + 2] = self.current_edge
                 else:
@@ -128,9 +130,10 @@ class Robot:
                 # Рандомный выбор
                 # выбирается если есть неисследованные рёбра и отмечает выбранное
                 chosen_edge = random.choice(present_edges)
+                # chosen_edge = present_edges[3]
                 chosen_edge.checked = True
             else:
-                # TODO: Сделать занесение вершины раньше этого места, а то в тупике он не видит в графе текущую вершину
+                # TODO: Отладить движение по Дейкстре
                 g = nx.Graph()
                 g.add_weighted_edges_from(adjacency_list)
                 print("**", adjacency_list)
@@ -222,7 +225,6 @@ class Robot:
             while self.get_coords().distance(self._destination_point) > 0.2:
                 # print(self._destination_point.x, self._destination_point.y)
                 continue
-            # TODO: Добавить рисование графа
             self._set_movement(0, 0, 0)
 
 

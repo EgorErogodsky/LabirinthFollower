@@ -15,10 +15,11 @@ class Moving(enum.IntEnum):
 
 
 class Robot:
-    SPEED_BOOST = 2
+    SPEED_BOOST = 5
     _destination_point = (np.NaN, np.NaN)
 
     def __init__(self, sim, robot_name):
+        self.g = nx.Graph()
         def init_sensors():
             _ = self._get_sensor_data(self._sensors['front'])
             _ = self._get_sensor_data(self._sensors['right'])
@@ -122,24 +123,21 @@ class Robot:
         if self.is_in_vertex()[1]:
             present_edges = [edge for edge in self.current_vertex.edges
                              if edge != -1 and not edge.checked]
-            # status = [e.checked for e in self.current_vertex.edges if e != -1]
 
-            # В первую очередь ошибки искать тут)
-            # if False in status or self.current_vertex.id == 0:
             if len(present_edges) > 0:
                 # Рандомный выбор
                 # выбирается если есть неисследованные рёбра и отмечает выбранное
-                chosen_edge = random.choice(present_edges)
-                # chosen_edge = present_edges[3]
+                chosen_edge = random.choice([i for i in present_edges if i!=-1])
                 chosen_edge.checked = True
             else:
                 # TODO: Отладить движение по Дейкстре
-                g = nx.Graph()
-                g.add_weighted_edges_from(adjacency_list)
+                #self.g = nx.Graph()
+                self.g.add_weighted_edges_from(adjacency_list)
                 print("**", adjacency_list)
                 print(self.current_vertex.edges)
-                chosen_edge = min([nx.dijkstra_path(g, str(self.current_vertex.id), str(v.id)) for v in vertices if
-                                   v.id != self.current_vertex.id])
+                chosen_edge = min([nx.dijkstra_path(self.g, str(self.current_vertex.id), str(v.id)) for v in vertices if
+                                   v.id != self.current_vertex.id and False in
+                                   [edge.checked for edge in v.edges if edge != -1]])
 
                 v1 = vertices[int(chosen_edge[0])]
                 v2 = vertices[int(chosen_edge[1])]
@@ -150,14 +148,6 @@ class Robot:
 
                 chosen_edge.checked = True
 
-            # chosen_edge = present_edges[2]
-
-            # if chosen_edge.vert2 != -1:
-            #     if self.current_vertex == chosen_edge.vert1:
-            #         self._destination_point = chosen_edge.vert2.coords
-            #     else:
-            #         self._destination_point = chosen_edge.vert1.coords
-            # else:
             self.moving = self.current_vertex.edges.index(chosen_edge)
             self._destination_point = get_neighbour_cell_center(self.get_coords(),
                                                                 self.moving)

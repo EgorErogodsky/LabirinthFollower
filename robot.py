@@ -15,11 +15,12 @@ class Moving(enum.IntEnum):
 
 
 class Robot:
-    SPEED_BOOST = 5
+    SPEED_BOOST = 3
     _destination_point = (np.NaN, np.NaN)
 
     def __init__(self, sim, robot_name):
         self.g = nx.Graph()
+
         def init_sensors():
             _ = self._get_sensor_data(self._sensors['front'])
             _ = self._get_sensor_data(self._sensors['right'])
@@ -66,6 +67,18 @@ class Robot:
         return True, vertex_type
 
     def _add_vertex(self, vertex_type):
+        def connect_vertex(vertex):
+            if self.moving < 4:
+                if self.current_edge.vert2 == -1:
+                    self.current_edge.vert2 = vertex
+                    self.current_edge.length = self.current_edge.vert1.coords.distance(self.current_edge.vert2.coords)
+                    plot_edge(self.current_edge)
+                if (self.moving == 0) or (self.moving == 1):
+                    vertex.edges[self.moving + 2] = self.current_edge
+                else:
+                    vertex.edges[self.moving - 2] = self.current_edge
+            return vertex
+
         add = True
 
         results = self._get_wall_detection()
@@ -76,15 +89,7 @@ class Robot:
             if coords_0.distance(coords_i) <= 0.3:
                 add = False
                 self.current_vertex = vertex
-
-                if self.moving < 4:
-                    if self.current_edge.vert2 == -1:
-                        self.current_edge.vert2 = self.current_vertex
-                        plot_edge(self.current_edge)
-                    if (self.moving == 0) or (self.moving == 1):
-                        self.current_vertex.edges[self.moving + 2] = self.current_edge
-                    else:
-                        self.current_vertex.edges[self.moving - 2] = self.current_edge
+                self.current_vertex = connect_vertex(self.current_vertex)
                 break
 
         if add:
@@ -95,20 +100,14 @@ class Robot:
                     vertex_edges.append(-1)
                 else:
                     vertex_edges.append(Edge(vertex, -1))
-            if self.moving < 4:
-                if self.current_edge.vert2 == -1:
-                    self.current_edge.vert2 = vertex
-                    plot_edge(self.current_edge)
-                if (self.moving == 0) or (self.moving == 1):
-                    vertex_edges[self.moving + 2] = self.current_edge
-                else:
-                    vertex_edges[self.moving - 2] = self.current_edge
+
             vertex.edges = vertex_edges
             vertices.append(vertex)
             self.current_vertex = vertex
             for vertex_edge in vertex_edges:
                 if (type(vertex_edge) == Edge) and (vertex_edge not in edges):
                     edges.append(vertex_edge)
+            connect_vertex(self.current_vertex)
         self.current_edge = Edge.undefined_edge()
 
     def get_coords(self):
@@ -127,11 +126,12 @@ class Robot:
             if len(present_edges) > 0:
                 # Рандомный выбор
                 # выбирается если есть неисследованные рёбра и отмечает выбранное
-                chosen_edge = random.choice([i for i in present_edges if i!=-1])
+                chosen_edge = random.choice([i for i in present_edges if i != -1])
                 chosen_edge.checked = True
+
             else:
                 # TODO: Отладить движение по Дейкстре
-                #self.g = nx.Graph()
+                # self.g = nx.Graph()
                 self.g.add_weighted_edges_from(adjacency_list)
                 print("**", adjacency_list)
                 print(self.current_vertex.edges)
@@ -146,12 +146,11 @@ class Robot:
                         if v2 in (edge.vert1, edge.vert2):
                             chosen_edge = edge
 
-                chosen_edge.checked = True
+            chosen_edge.checked = True
 
             self.moving = self.current_vertex.edges.index(chosen_edge)
             self._destination_point = get_neighbour_cell_center(self.get_coords(),
                                                                 self.moving)
-            chosen_edge.length = 1
             self.current_edge = chosen_edge
             return chosen_edge
         else:
@@ -182,7 +181,6 @@ class Robot:
             self._choose_path()
         else:
             self._destination_point = get_neighbour_cell_center(self.get_coords(), self.moving)
-            self.current_edge.length += 1
 
         if (self._destination_point.x != np.NaN) and (self._destination_point.y != np.NaN):
             destination_vector = Vector(self.get_coords(), self._destination_point)

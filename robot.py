@@ -15,7 +15,7 @@ class Moving(enum.IntEnum):
 
 
 class Robot:
-    SPEED_BOOST = 3
+    SPEED_BOOST = 5
     _destination_point = (np.NaN, np.NaN)
 
     def __init__(self, sim, robots_names):
@@ -134,14 +134,15 @@ class Robot:
                 chosen_edge.checked = True
 
             else:
-                # TODO: Отладить движение по Дейкстре
+                # TODO: Отладить движение по Дейкстре(в какой-то момент накапливается ошибка и он цепляется за стену)
                 # self.g = nx.Graph()
                 self.g.add_weighted_edges_from(adjacency_list)
                 print("**", adjacency_list)
-                print(self.names[idx], self.current_vertexes[idx].edges)
-                chosen_edge = min([nx.dijkstra_path(self.g, str(self.current_vertexes[idx].id), str(v.id)) for v in vertices if
-                                   v.id != self.current_vertexes[idx].id and False in
-                                   [edge.checked for edge in v.edges if edge != -1]])
+
+                chosen_edge = min([nx.dijkstra_path(self.g, str(self.current_vertexes[idx].id), str(v.id)) for v in vertices for i in range(4) if
+                                   v.id != self.current_vertexes[idx].id and
+                                   False in [edge.checked for edge in v.edges if edge != -1] and
+                                  (str(v.id), str(self.current_vertexes[idx].id), float(i)) in adjacency_list])
 
                 v1 = vertices[int(chosen_edge[0])]
                 v2 = vertices[int(chosen_edge[1])]

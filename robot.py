@@ -15,7 +15,7 @@ class Moving(enum.IntEnum):
 
 
 class Robot:
-    SPEED_BOOST = 5
+    SPEED_BOOST = 3
     _destination_point = (np.NaN, np.NaN)
 
     def __init__(self, sim, robots_names):
@@ -134,7 +134,7 @@ class Robot:
                 chosen_edge.checked = True
 
             else:
-                # TODO: Отладить движение по Дейкстре(в какой-то момент накапливается ошибка и он цепляется за стену)
+                # TODO: Отладить движение по Дейкстре(ValueError: min() arg is an empty sequence)
                 # self.g = nx.Graph()
                 self.g.add_weighted_edges_from(adjacency_list)
                 print("**", adjacency_list)
@@ -216,10 +216,14 @@ class Robot:
             for robot in self.names:
                 robot_idx = self.names.index(robot)
                 self._move(robot_idx)
-                while self.get_coords(robot_idx).distance(self._destination_point[robot_idx]) > 0.2:
-                    # print(self._destination_point.x, self._destination_point.y)
-                    continue
-                self._set_movement(0, 0, 0, robot_idx)
+            while any([self.get_coords(self.names.index(robot)).distance(
+                    self._destination_point[self.names.index(robot)]) > 0.2 for robot in self.names]):
+                # print(self._destination_point.x, self._destination_point.y)
+                for robot in self.names:
+                    robot_idx = self.names.index(robot)
+                    if self.get_coords(robot_idx).distance(self._destination_point[robot_idx]) <= 0.2:
+                        self._set_movement(0, 0, 0, robot_idx)
+                continue
 
 
 client = RemoteAPIClient()

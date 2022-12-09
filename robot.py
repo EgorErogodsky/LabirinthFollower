@@ -1,4 +1,4 @@
-import random
+import time
 
 import networkx as nx
 
@@ -15,11 +15,13 @@ class Moving(enum.IntEnum):
 
 
 class Robot:
-    SPEED_BOOST = 1
+    SPEED_BOOST = 2
     _destination_point = (np.NaN, np.NaN)
 
     def __init__(self, sim, robots_names):
+        self.current_distances = None
         self.g = nx.Graph()
+        self._start_time = time.time()
 
         def init_sensors(idx):
             _ = self._get_sensor_data(self._sensors[idx]['front'])
@@ -29,19 +31,19 @@ class Robot:
 
         global vertices
         self.names = robots_names
+        self.prev_distances = [None for robot in self.names]
         self._destination_point = [(np.NaN, np.NaN) for n in self.names]
         self.sim = sim
         self._sensors = []
         for name in self.names:
             self._sensors += [{'front': self.sim.getObject('/' + name + '/FRONTSENS'),
-                             'right': self.sim.getObject('/' + name + '/RIGHTSENS'),
-                             'back': self.sim.getObject('/' + name + '/BACKSENS'),
-                             'left': self.sim.getObject('/' + name + '/LEFTSENS')}]
+                               'right': self.sim.getObject('/' + name + '/RIGHTSENS'),
+                               'back': self.sim.getObject('/' + name + '/BACKSENS'),
+                               'left': self.sim.getObject('/' + name + '/LEFTSENS')}]
         self.current_edges = [Edge.undefined_edge() for i in self.names]
         self.current_vertexes = [Vertex.undefined_vertex() for i in self.names]
         self.movings = [Moving.standing for i in self.names]
         [init_sensors(idx) for idx in range(len(self.names))]
-
 
     def _get_sensor_data(self, sensor):
         sensor_output = ['result',
@@ -75,7 +77,8 @@ class Robot:
             if self.movings[idx] < 4:
                 if self.current_edges[idx].vert2 == -1:
                     self.current_edges[idx].vert2 = vertex
-                    self.current_edges[idx].length = self.current_edges[idx].vert1.coords.distance(self.current_edges[idx].vert2.coords)
+                    self.current_edges[idx].length = self.current_edges[idx].vert1.coords.distance(
+                        self.current_edges[idx].vert2.coords)
                     plot_edge(self.current_edges[idx])
                 if (self.movings[idx] == 0) or (self.movings[idx] == 1):
                     vertex.edges[self.movings[idx] + 2] = self.current_edges[idx]
@@ -130,7 +133,10 @@ class Robot:
             if len(present_edges) > 0:
                 # Рандомный выбор
                 # выбирается если есть неисследованные рёбра и отмечает выбранное
-                chosen_edge = random.choice([i for i in present_edges if i != -1])
+                # chosen_edge = random.choice([i for i in present_edges if i != -1])
+                tmp = present_edges.copy()
+                tmp.reverse()
+                chosen_edge = next(edge for edge in tmp if edge != -1)
                 chosen_edge.checked = True
 
             else:
@@ -138,14 +144,19 @@ class Robot:
                 # self.g = nx.Graph()
                 self.g.add_weighted_edges_from(adjacency_list)
 
-                path_list = [nx.dijkstra_path(self.g, str(self.current_vertexes[idx].id), str(v.id)) for v in vertices for i in range(4) if
-                                   v.id != self.current_vertexes[idx].id and
-                                   False in [edge.checked for edge in v.edges if edge != -1] and
-                                  (str(v.id), str(self.current_vertexes[idx].id), float(i)) in adjacency_list]
+                path_list = [nx.dijkstra_path(self.g, str(self.current_vertexes[idx].id), str(v.id)) for v in vertices
+                             for i in range(4) if
+                             v.id != self.current_vertexes[idx].id and
+                             False in [edge.checked for edge in v.edges if edge != -1] and
+                             (str(v.id), str(self.current_vertexes[idx].id), float(i)) in adjacency_list]
 
-                chosen_edge = min(path_list) if path_list != [] else nx.dijkstra_path(self.g, str(self.current_vertexes[idx].id), str(idx))
+                chosen_edge = min(path_list) if path_list != [] else nx.dijkstra_path(self.g, str(
+                    self.current_vertexes[idx].id), str(idx))
 
-                print('##', [edge.checked for edge in vertices[int(chosen_edge[0])].edges if edge != -1])
+                if not path_list:
+                    print("ВРЕМЯ:", time.time() - self._start_time)
+
+                # print('##', [edge.checked for edge in vertices[int(chosen_edge[0])].edges if edge != -1])
 
                 if len(chosen_edge) == 1:
                     self.stay(idx)
@@ -161,7 +172,7 @@ class Robot:
 
             self.movings[idx] = self.current_vertexes[idx].edges.index(chosen_edge)
             self._destination_point[idx] = get_neighbour_cell_center(self.get_coords(idx),
-                                                                self.movings[idx])
+                                                                     self.movings[idx])
             self.current_edges[idx] = chosen_edge
             return chosen_edge
         else:
@@ -184,13 +195,15 @@ class Robot:
             self._add_vertex(vertex_type, robot_idx)
         adjacency_list = [(str(edge.vert1.id), str(edge.vert2.id), edge.length) for edge in edges
                           if (edge.vert1 != -1) and (edge.vert2 != -1)]
-        print(adjacency_list)
+        # print(adjacency_list)
 
         if in_vertex:
-            print(self.names[robot_idx], [edge.checked for edge in self.current_vertexes[robot_idx].edges if edge != -1])
+            # print(self.names[robot_idx],
+            #       [edge.checked for edge in self.current_vertexes[robot_idx].edges if edge != -1])
             self._choose_path(robot_idx)
         else:
-            self._destination_point[robot_idx] = get_neighbour_cell_center(self.get_coords(robot_idx), self.movings[robot_idx])
+            self._destination_point[robot_idx] = get_neighbour_cell_center(self.get_coords(robot_idx),
+                                                                           self.movings[robot_idx])
 
         if (self._destination_point[robot_idx].x != np.NaN) and (self._destination_point[robot_idx].y != np.NaN):
             destination_vector = Vector(self.get_coords(robot_idx), self._destination_point[robot_idx])
@@ -227,11 +240,11 @@ class Robot:
                 robot_idx = self.names.index(robot)
                 self._move(robot_idx)
             while any([self.get_coords(self.names.index(robot)).distance(
-                    self._destination_point[self.names.index(robot)]) > 0.2 for robot in self.names]):
+                    self._destination_point[self.names.index(robot)]) > 0.25 for robot in self.names]):
                 # print(self._destination_point.x, self._destination_point.y)
                 for robot in self.names:
                     robot_idx = self.names.index(robot)
-                    if self.get_coords(robot_idx).distance(self._destination_point[robot_idx]) <= 0.2:
+                    if self.get_coords(robot_idx).distance(self._destination_point[robot_idx]) <= 0.25:
                         self._set_movement(0, 0, 0, robot_idx)
                 continue
 

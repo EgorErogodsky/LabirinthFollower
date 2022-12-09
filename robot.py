@@ -146,6 +146,10 @@ class Robot:
                 chosen_edge = min(path_list) if path_list != [] else nx.dijkstra_path(self.g, str(self.current_vertexes[idx].id), str(idx))
 
                 print('##', [edge.checked for edge in vertices[int(chosen_edge[0])].edges if edge != -1])
+
+                if len(chosen_edge) == 1:
+                    self.stay(idx)
+
                 v1 = vertices[int(chosen_edge[0])]
                 v2 = vertices[int(chosen_edge[1])]
                 for edge in v1.edges:
@@ -212,6 +216,10 @@ class Robot:
                 left_right_vel = -left_right_vel
 
             self._set_movement(self.SPEED_BOOST * forward_back_vel, self.SPEED_BOOST * left_right_vel, 0, robot_idx)
+
+    def stay(self, idx):
+        while 1:
+            self._set_movement(0, 0, 0, idx)
 
     def start(self):
         while 1:

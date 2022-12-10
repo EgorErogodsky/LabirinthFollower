@@ -22,6 +22,7 @@ class Robot:
         self.current_distances = None
         self.g = nx.Graph()
         self._start_time = time.time()
+        self.completeness = set()
 
         def init_sensors(idx):
             _ = self._get_sensor_data(self._sensors[idx]['front'])
@@ -75,6 +76,7 @@ class Robot:
     def _add_vertex(self, vertex_type, idx):
         def connect_vertex(vertex):
             if self.movings[idx] < 4:
+                print(self.current_edges)
                 if self.current_edges[idx].vert2 == -1:
                     self.current_edges[idx].vert2 = vertex
                     self.current_edges[idx].length = self.current_edges[idx].vert1.coords.distance(
@@ -96,6 +98,7 @@ class Robot:
             if coords_0.distance(coords_i) <= 0.3:
                 add = False
                 self.current_vertexes[idx] = vertex
+                print(idx, self.current_vertexes)
                 self.current_vertexes[idx] = connect_vertex(self.current_vertexes[idx])
                 break
 
@@ -128,7 +131,8 @@ class Robot:
     def _choose_path(self, idx):
         if self.is_in_vertex(idx)[1]:
             present_edges = [edge for edge in self.current_vertexes[idx].edges
-                             if edge != -1 and not edge.checked]
+                             if edge != -1 and not edge.checked
+                             and edge not in self.current_edges]
 
             if len(present_edges) > 0:
                 # Рандомный выбор
@@ -136,31 +140,35 @@ class Robot:
                 # chosen_edge = random.choice([i for i in present_edges if i != -1])
                 tmp = present_edges.copy()
                 tmp.reverse()
-                chosen_edge = next(edge for edge in tmp if edge != -1)
+                chosen_edge = next(edge for edge in tmp)
                 chosen_edge.checked = True
 
             else:
-                # TODO:
                 self.g.add_weighted_edges_from(adjacency_list)
 
+                print(self.names[idx])
                 path_list = []
                 for v in vertices:
-                    for i in range(4):
-                        if v.id != self.current_vertexes[idx].id:
-                            if False in [edge.checked for edge in v.edges if edge != -1]:
-                                if (str(v.id), str(self.current_vertexes[idx].id), float(i)) in adjacency_list:
-                                    path_list += [nx.dijkstra_path(self.g, str(self.current_vertexes[idx].id), str(v.id))]
+                    v2_list = [e.vert2 for e in self.current_edges]
+                    if v.id != self.current_vertexes[idx].id and v not in v2_list:
+                        edge_list = [edge.checked for edge in v.edges
+                                     if edge != -1 and edge not in self.current_edges]
+                        if False in edge_list:
+                            if nx.has_path(self.g, str(self.current_vertexes[idx].id), str(v.id)):
+                                path_list += [nx.dijkstra_path(self.g, str(self.current_vertexes[idx].id), str(v.id))]
 
-                chosen_edge = min(path_list) if path_list != []\
-                                            else nx.dijkstra_path(self.g, str(self.current_vertexes[idx].id), str(idx))
-
+                print(path_list)
+                chosen_edge = min(path_list, key=len) if path_list else nx.dijkstra_path(self.g, str(self.current_vertexes[idx].id), str(idx))
+                print('***************', chosen_edge)
                 if not path_list:
                     print("ВРЕМЯ:", time.time() - self._start_time)
 
                 # print('##', [edge.checked for edge in vertices[int(chosen_edge[0])].edges if edge != -1])
 
                 if len(chosen_edge) == 1:
-                    self.stay(idx)
+                    self.completeness.add(idx)
+                    self._set_movement(0, 0, 0, idx)
+                    return None
 
                 v1 = vertices[int(chosen_edge[0])]
                 v2 = vertices[int(chosen_edge[1])]
@@ -231,13 +239,12 @@ class Robot:
 
             self._set_movement(self.SPEED_BOOST * forward_back_vel, self.SPEED_BOOST * left_right_vel, 0, robot_idx)
 
-    def stay(self, idx):
-        while 1:
-            self._set_movement(0, 0, 0, idx)
-
     def start(self):
         while 1:
+            if self.completeness:
+                print('Обход завершили роботы:', [self.names[i] for i in self.completeness])
             for robot in self.names:
+                # TODO:Поправить ошибку когда один уже доехал и
                 robot_idx = self.names.index(robot)
                 self._move(robot_idx)
             while any([self.get_coords(self.names.index(robot)).distance(
@@ -248,6 +255,8 @@ class Robot:
                     if self.get_coords(robot_idx).distance(self._destination_point[robot_idx]) <= 0.25:
                         self._set_movement(0, 0, 0, robot_idx)
                 continue
+            if len(self.completeness) == 2:
+                print('Обход завешён!')
 
 
 client = RemoteAPIClient()

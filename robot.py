@@ -15,7 +15,7 @@ class Moving(enum.IntEnum):
 
 
 class Robot:
-    SPEED_BOOST = 2
+    SPEED_BOOST = 1
     _destination_point = (np.NaN, np.NaN)
 
     def __init__(self, sim, robots_names):
@@ -140,18 +140,19 @@ class Robot:
                 chosen_edge.checked = True
 
             else:
-                # TODO: Отладить движение по Дейкстре(в какой-то момент накапливается ошибка и он цепляется за стену)
-                # self.g = nx.Graph()
+                # TODO:
                 self.g.add_weighted_edges_from(adjacency_list)
 
-                path_list = [nx.dijkstra_path(self.g, str(self.current_vertexes[idx].id), str(v.id)) for v in vertices
-                             for i in range(4) if
-                             v.id != self.current_vertexes[idx].id and
-                             False in [edge.checked for edge in v.edges if edge != -1] and
-                             (str(v.id), str(self.current_vertexes[idx].id), float(i)) in adjacency_list]
+                path_list = []
+                for v in vertices:
+                    for i in range(4):
+                        if v.id != self.current_vertexes[idx].id:
+                            if False in [edge.checked for edge in v.edges if edge != -1]:
+                                if (str(v.id), str(self.current_vertexes[idx].id), float(i)) in adjacency_list:
+                                    path_list += [nx.dijkstra_path(self.g, str(self.current_vertexes[idx].id), str(v.id))]
 
-                chosen_edge = min(path_list) if path_list != [] else nx.dijkstra_path(self.g, str(
-                    self.current_vertexes[idx].id), str(idx))
+                chosen_edge = min(path_list) if path_list != []\
+                                            else nx.dijkstra_path(self.g, str(self.current_vertexes[idx].id), str(idx))
 
                 if not path_list:
                     print("ВРЕМЯ:", time.time() - self._start_time)

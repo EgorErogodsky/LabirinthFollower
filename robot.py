@@ -15,7 +15,10 @@ class Moving(enum.IntEnum):
 
 
 class Robot:
-    SPEED_BOOST = 1
+    SPEED_BOOST = 2.7
+    CENTER_AREA = 0.35
+    ORDER = 0
+
     _destination_point = (np.NaN, np.NaN)
 
     def __init__(self, sim, robots_names):
@@ -95,7 +98,7 @@ class Robot:
 
         for vertex in vertices:
             coords_i = vertex.coords
-            if coords_0.distance(coords_i) <= 0.3:
+            if coords_0.distance(coords_i) <= self.CENTER_AREA:
                 add = False
                 self.current_vertexes[idx] = vertex
                 print(idx, self.current_vertexes)
@@ -139,7 +142,8 @@ class Robot:
                 # выбирается если есть неисследованные рёбра и отмечает выбранное
                 # chosen_edge = random.choice([i for i in present_edges if i != -1])
                 tmp = present_edges.copy()
-                tmp.reverse()
+                if self.ORDER == 1:
+                    tmp.reverse()
                 chosen_edge = next(edge for edge in tmp)
                 chosen_edge.checked = True
 
@@ -154,12 +158,14 @@ class Robot:
                         edge_list = [edge.checked for edge in v.edges
                                      if edge != -1 and edge not in self.current_edges]
                         if False in edge_list:
-                            if nx.has_path(self.g, str(self.current_vertexes[idx].id), str(v.id)):
-                                path_list += [nx.dijkstra_path(self.g, str(self.current_vertexes[idx].id), str(v.id))]
+                            if self.g.has_node(str(self.current_vertexes[idx].id)) and self.g.has_node(str(v.id)):
+                                if nx.has_path(self.g, str(self.current_vertexes[idx].id), str(v.id)):
+                                    path_list += [
+                                        nx.dijkstra_path(self.g, str(self.current_vertexes[idx].id), str(v.id))]
 
-                print(path_list)
+                # print(path_list)
                 chosen_edge = min(path_list, key=len) if path_list else nx.dijkstra_path(self.g, str(self.current_vertexes[idx].id), str(idx))
-                print('***************', chosen_edge)
+                # print('***************', chosen_edge)
                 if not path_list:
                     print("ВРЕМЯ:", time.time() - self._start_time)
 
@@ -248,11 +254,11 @@ class Robot:
                 robot_idx = self.names.index(robot)
                 self._move(robot_idx)
             while any([self.get_coords(self.names.index(robot)).distance(
-                    self._destination_point[self.names.index(robot)]) > 0.25 for robot in self.names]):
+                    self._destination_point[self.names.index(robot)]) > self.CENTER_AREA for robot in self.names]):
                 # print(self._destination_point.x, self._destination_point.y)
                 for robot in self.names:
                     robot_idx = self.names.index(robot)
-                    if self.get_coords(robot_idx).distance(self._destination_point[robot_idx]) <= 0.25:
+                    if self.get_coords(robot_idx).distance(self._destination_point[robot_idx]) <= self.CENTER_AREA:
                         self._set_movement(0, 0, 0, robot_idx)
                 continue
             if len(self.completeness) == 2:
@@ -272,6 +278,6 @@ sim.startSimulation()
 # while (t := sim.getSimulationTime()) < 20:
 # s = f'Simulation time: {t:.2f} [s]'
 # print(s)
-robots = Robot(sim, ['youBot[0]', 'youBot[1]'])
+robots = Robot(sim, ['youBot[0]', 'youBot[1]', 'youBot[2]'])
 if sim.getSimulationTime() > 1:
     robots.start()
